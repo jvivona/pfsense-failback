@@ -3,9 +3,9 @@
 
 for up to pfsense 2.4.4
 
-bring down both files to local pfsense root directory
+bring down both files to local pfsense root directory -  use   fetch <url>
 
-set to +x
+chmod +x  both files
 
 install cron on pfsense from package manager
 
