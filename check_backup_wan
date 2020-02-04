@@ -1,0 +1,44 @@
+#!/bin/sh
+# check_backup_wan script
+# mvneta0 is the 2nd WAN interface. mvneta2 is the primary WAN
+# 8.8.4.4 is set as the monitor IP on the primary WAN interface
+# The idea is to get the IP addresses of the primary and secondary WAN interfaces.
+# If the primary WAN IP address is not available, assume the primary WAN is still down.
+# Assuming the primary WAN is still up, check if there any live TCP connections on the backup WAN.
+# If live TCP connections are found on the backup WAN, check that the primary WAN is responding to
+# pings on the monitor IP address.  If the primary WAN is responding to pings, then kill the states
+# on the backup WAN, and they will automatically reconnect over the primary WAN.
+
+check_wan_time=`date "+%Y-%m-%d %H:%M:%S"`
+check_wan=8.8.4.4
+
+wan_ipaddress=`ifconfig mvneta2 | grep 'inet ' | awk '{ print $2}' | cut -d'/' -f1`
+wan2_ipaddress=`ifconfig mvneta0 | grep 'inet ' | awk '{ print $2}' | cut -d'/' -f1`
+
+echo 'primary, backup WAN IP address ' ${wan_ipaddress} '(primary) ' ${wan2_ipaddress} '(backup)'
+# check for valid primary WAN IP address.
+if [ -z "${wan_ipaddress}" ]; then
+  echo ${check_wan_time} '... primary WAN is still down (no WAN IP)' | tee -a /var/log/check_backup_wan.log
+  exit 0
+fi
+
+# check for active connections on backup_wan
+pfctl -i mvneta0 -ss | grep 'tcp'
+wan2_liveconn=`pfctl -i mvneta0 -ss | grep 'tcp'`
+if [ -n "${wan2_liveconn}" ]; then
+# found a tcp connection on the backup wan interface
+  ping -c 2 -t 2 -S ${wan_ipaddress} ${check_wan} > /dev/null 2>&1
+  wan1_resp=$?
+  wan_resp=`expr ${wan1_resp}`
+
+  echo 'primary WAN ping check (0 means passed)' ${wan1_resp}
+
+  if [ ${wan_resp} -eq 0 ]; then
+    echo ${check_wan_time} '... killing states and resetting connections on backup WAN' | tee -a /var/log/check_backup_wan.log
+    /etc/my_kill_states mvneta0 ${wan2_ipaddress}
+  else
+    echo ${check_wan_time} '... primary WAN is still downi (pings failing)' | tee -a /var/log/check_backup_wan.log
+  fi
+else
+  echo ${check_wan_time} '... no active tcp connections found on backup WAN' | tee -a /var/log/check_backup_wan.log
+fi
