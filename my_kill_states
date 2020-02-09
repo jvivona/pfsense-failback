@@ -85,5 +85,5 @@ if (!empty($local_ip)) {
                 pfSense_kill_srcstates("{$local_ip}/{$subnet_bits}");
         }
         log_error("rc.kill_states: Removing states for interface {$interface}");
-        mwexec("/sbin/pfctl -i {$interface} -Fs", true);
+        mwexec("/sbin/pfctl -i {$interface} -Fall", true);
 #}
